@@ -2,7 +2,7 @@ from setuptools import setup
 import os 
 from glob import glob
 
-package_name = 'yolo_pose'
+package_name = 'face_recognition'
 
 setup(
     name=package_name,
