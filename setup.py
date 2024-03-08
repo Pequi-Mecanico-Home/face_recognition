@@ -23,7 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'inference = yolo_pose.yolo_inference:main'
+            'inference = face_recognition.yolo_inference:main'
         ],
     },
 )
