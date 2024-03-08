@@ -7,7 +7,7 @@ from deepface.modules import verification
 import rclpy
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.node import Node
-# from cv_bridge import CvBridge
+from cv_bridge import CvBridge
 # from ultralytics import YOLO
 # from ultralytics.engine.results import Results
 from sensor_msgs.msg import Image
@@ -34,7 +34,7 @@ class Yolov8Node(Node):
         # self.declare_parameter("threshold", 0.5)
         # self.threshold = self.get_parameter(
         #     "threshold").get_parameter_value().double_value
-        # self.cv_bridge = CvBridge()
+        self.cv_bridge = CvBridge()
         # self.yolo = YOLO(model)
         # self.yolo.fuse() # não sabemos o que isso faz
         # self.yolo.to(self.device)
@@ -50,7 +50,7 @@ class Yolov8Node(Node):
             qos_profile_sensor_data
         )
 
-        self.embedding_obj_alvo = DeepFace.represent(img_path = '/home/daniel/Documentos/pequi_mecanico/yolo_pose-dev/fotos/gabigol.jpg', 
+        self.embedding_obj_alvo = DeepFace.represent(img_path = '/root/dev/src/yolo_pose/fotos/daniel_perfil', 
         detector_backend = self.backends[4]
         )
 
@@ -111,12 +111,12 @@ class Yolov8Node(Node):
                 cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2) 
 
         # cv2.imwrite('/home/daniel/Documentos/pequi_mecanico/yolo_pose-dev/fotos/result.jpg', image)
-
-        x = embedding_objs[alvo]['facial_area']['x']
-        y = embedding_objs[alvo]['facial_area']['y']
-        point = Point32()
-        point.x = x
-        point.y = y
+        if len(embedding_objts) > 0:
+            x = embedding_objs[alvo]['facial_area']['x']
+            y = embedding_objs[alvo]['facial_area']['y']
+            point = Point32()
+            point.x = x
+            point.y = y
 
         self.pub_track.publish(point)
         
@@ -138,12 +138,15 @@ class Yolov8Node(Node):
         #     persist=True
         # )
         # results: Results = results[0].cpu()
-
+    
         cv_image = self.cv_bridge.imgmsg_to_cv2(msg)
 
-        embedding_objs = DeepFace.represent(img_path = msg, 
-                detector_backend = self.backends[4]
-        )
+        try:
+            embedding_objs = DeepFace.represent(img_path = msg, 
+                    detector_backend = self.backends[4]
+            )
+        except:
+            embeddings_objs = []
 
         if self.embedding_obj_alvo:
             self._pub.publish(self.cv_bridge.cv2_to_imgmsg(self.draw_keypoints(cv_image, self.embedding_obj_alvo, embedding_objs), encoding=msg.encoding))
