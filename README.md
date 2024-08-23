@@ -8,7 +8,7 @@
 Abra o container dentro de percepcao usando:
 
 ```
-docker run  -it  --rm  --name face_recognition --privileged --net=host  --env 'DISPLAY' --env="QT_X11_NO_MITSHM=1" --volume "/tmp/.X11-unix:/tmp/.X11-unix:rw" --volume "/dev:/dev" --volume ./face_recognition:/dev_ws/src/face_recognition --runtime nvidia  --ulimit memlock=-1  --ulimit stack=67108864  image_fr:v7
+docker run  -it  --rm  --name face_recognition --privileged --net=host  --env 'DISPLAY' --env="QT_X11_NO_MITSHM=1" --volume "/tmp/.X11-unix:/tmp/.X11-unix:rw" --volume "/dev:/dev" --volume ./face_recognition:/dev_ws/src/face_recognition --runtime nvidia  --ulimit memlock=-1  --ulimit stack=67108864  image_fr:v8
 ```
 
 --------------------------------------------------------------------------------------------
