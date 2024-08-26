@@ -35,7 +35,7 @@ ros2 run face_recognition inference
 Abra o container em outro terminal e abra a camera realsense2:
 
 ```
-docker exec -it <nome_container> bash
+docker exec -it face_recognition bash
 ```
 
 ```
@@ -50,6 +50,13 @@ Abra o Rviz em outro terminal para observar as detecções dentro container em o
 rviz2
 ```
 
+--------------------------------------------------------------------------------------------
+
+Para alterar o modo de execução do service:
+
+```
+ros2 service call /toggle_mode std_srvs/srv/Empty
+```
 
 --------------------------------------------------------------------------------------------
 

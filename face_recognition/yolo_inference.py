@@ -19,7 +19,8 @@ class FaceRecognitionService(Node):
 
         self.get_logger().info('Começou')
         
-        self.mode = 'generate'  # Modo inicial: gerar embeddings
+        # Modo inicial: gerar embeddings
+        self.mode = 'generate'
         self.embedding_obj_alvo = None
 
         # Serviço para alternar o modo entre "generate" e "compare"
@@ -32,11 +33,13 @@ class FaceRecognitionService(Node):
             qos_profile_sensor_data
         )
 
-        self.frame_skip = 10  # Número de frames a pular
+        # Contagem de frames para pular
+        self.frame_skip = 10
         self.frame_count = 0
 
+
+    # Alterna o modo entre "generate" e "compare"
     def toggle_mode_callback(self, request, response):
-        # Alterna o modo entre "generate" e "compare"
         if self.mode == 'generate':
             self.mode = 'compare'
             self.get_logger().info('Modo alterado para: COMPARAR')
@@ -45,37 +48,57 @@ class FaceRecognitionService(Node):
             self.get_logger().info('Modo alterado para: GERAR')
         return response
 
+
     def image_cb(self, msg: Image) -> None:
+        # Frames que são ignorados
         self.frame_count += 1
         if self.frame_count % self.frame_skip != 0:
             return
 
         self.get_logger().info('Imagem recebida.')
 
+        # Converte imagem para OpenCV
         try:
-            cv_image = self.cv_bridge.imgmsg_to_cv2(msg)
+            image = self.cv_bridge.imgmsg_to_cv2(msg)
             self.get_logger().info('Imagem convertida para OpenCV.')
         except Exception as e:
             self.get_logger().error(f'Erro na conversão da imagem: {e}')
             return
 
+        # Gera embeddings
+        # Se não conter rostos na imagem, dá erro e é passado uma lista vazia
+        # A lista vazia não gera erro na função draw_logs caso não tenha rostos para gerar as bounding boxes
         try:
-            embedding_objs = DeepFace.represent(img_path=cv_image, detector_backend=self.backend)
+            embedding_objs = DeepFace.represent(img_path=image, detector_backend=self.backend)
             self.get_logger().info('Embeddings gerados para a imagem.')
         except Exception as e:
             self.get_logger().error(f'Erro ao gerar embeddings: {e}')
             embedding_objs = []
 
-        if self.mode == 'generate' and embedding_objs:
-            self.save_embeddings(embedding_objs)
-            self.get_logger().info('Embeddings salvos com sucesso.')
+        # Salva os embeddings do rosto alvo caso tenha 1 rosto na imagem
+        if self.mode == 'generate':
+            if len(embedding_objs) != 1: # INTERAÇÃO: pode avisar o usuário que é necessário ter um rosto para salvar os embeddings
+                self.get_logger().error(f'Erro, foram detectados {len(embedding_objs)} rostos na imagem.')
+            else:
+                self.save_embeddings(embedding_objs)
+                self.get_logger().info('Embeddings salvos com sucesso.')
+            # Desenha logs
+            image = self.draw_logs(image, embedding_objs=embedding_objs, mode=self.mode)
+            
+        # Compara os embeddings do rosto alvo com a multidão
         elif self.mode == 'compare':
             embedding_obj_alvo = self.load_embeddings()
-            if embedding_objs:
-                image = self.draw_keypoints(cv_image, embedding_obj_alvo, embedding_objs)
-                self._pub.publish(self.cv_bridge.cv2_to_imgmsg(image, encoding=msg.encoding))
-                self.get_logger().info('Imagem com keypoints publicada.')
+            if embedding_obj_alvo is None: # INTERAÇÃO: avise que o rosto alvo não foi identificado antes de trocar o modo de execução
+                self.get_logger().error('Não foram gerados embeddings para o rosto alvo.')
+            # Desenha logs
+            image = self.draw_logs(image, embedding_objs=embedding_objs, embedding_obj_alvo=embedding_obj_alvo, mode=self.mode)
 
+        # Publica a imagem com os logs
+        self._pub.publish(self.cv_bridge.cv2_to_imgmsg(image, encoding=msg.encoding))
+        self.get_logger().info('Imagem com logs publicada.')
+
+
+    # Função para salvar os embeddings do rosto alvo em um arquivo
     def save_embeddings(self, embedding):
         try:
             embedding = np.array(embedding[0]['embedding'])
@@ -86,6 +109,7 @@ class FaceRecognitionService(Node):
             self.get_logger().error(f'Erro ao salvar embeddings: {e}')
 
 
+    # Função para carregar os embeddings do rosto alvo do arquivo
     def load_embeddings(self):
         try:
             embedding_loaded = np.load('/dev_ws/src/face_recognition/saved_embedding.npy')
@@ -96,35 +120,85 @@ class FaceRecognitionService(Node):
             return None
         
 
-    def draw_keypoints(self, image, embedding_obj_alvo, embedding_objs):
-        try:
-            self.get_logger().info('Desenhando keypoints.')
+    # Função para desenhar logs nas imagens
+    def draw_logs(self, image, embedding_objs, mode, embedding_obj_alvo=None):
+        # try:
+            self.get_logger().info('Desenhando logs.')
             distance = float('inf')
+
             alvo = -1
 
-            for i in range(len(embedding_objs)):
-                distance_vector = np.square(embedding_obj_alvo - np.array(embedding_objs[i]['embedding']))
-                current_distance = np.sqrt(distance_vector.sum())
+            # Modo para exibir na tela
+            if mode == 'generate':
+                text_log = "Gerando embeddings do rosto alvo."
+            elif mode == 'compare':
+                text_log = "Identificacao do rosto alvo na multidao."
 
-                if current_distance < distance:
-                    distance = current_distance
-                    alvo = i
+            # Compara os embeddings do rosto alvo com os rostos da multidão e marca o alvo
+            if embedding_obj_alvo is not None:
+                for i in range(len(embedding_objs)):
+                    distance_vector = np.square(embedding_obj_alvo - np.array(embedding_objs[i]['embedding']))
+                    current_distance = np.sqrt(distance_vector.sum())
+                    if current_distance < distance:
+                        distance = current_distance
+                        alvo = i
 
+            # Configurações de logs
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 1
+            thickness = 2
+            color_text = (255, 255, 255)  # Cor do texto (branco)
+            color_background = (0, 0, 0)  # Cor do fundo (preto)
+
+            # Log do modo de execução
+            position1 = (50, 50)
+            (text_width1, text_height1), _ = cv2.getTextSize(text_log, font, font_scale, thickness)
+            cv2.rectangle(image, 
+              (position1[0] - 10, position1[1] - text_height1 - 10), 
+              (position1[0] + text_width1 + 10, position1[1] + 10), 
+              color_background, -1)
+            cv2.putText(image, text_log, position1, font, font_scale, color_text, thickness)
+
+            # Log para a quantidade de pessoas
+            position2 = (50, 120)
+            count_ids = len(embedding_objs)
+            text2 = f'Quantidade de pessoas detectadas: {count_ids}.'
+            (text_width2, text_height2), _ = cv2.getTextSize(text2, font, font_scale, thickness)
+            cv2.rectangle(image, 
+              (position2[0] - 10, position2[1] - text_height2 - 10), 
+              (position2[0] + text_width2 + 10, position2[1] + 10), 
+              color_background, -1)
+            cv2.putText(image, text2, position2, font, font_scale, color_text, thickness)
+        
+            # Desenhando bounding boxes
             for i in range(len(embedding_objs)):
+                
+                # Local da bounding box
                 x = embedding_objs[i]['facial_area']['x']
                 y = embedding_objs[i]['facial_area']['y']
                 w = embedding_objs[i]['facial_area']['w']
                 h = embedding_objs[i]['facial_area']['h']
 
+                # Bounding box para o rosto alvo identificado em verde + nome ou id
                 if i == alvo:
-                    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                else:
-                    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+                    person_name = 'Danielzin da quebrada' # INTERAÇÃO: Desenvolver uma forma de guardar o nome ou id do rosto alvo
+                    (text_width_name, text_height_name), _ = cv2.getTextSize(person_name, font, font_scale, thickness)
+                    cv2.rectangle(image, 
+                        (x, y - text_height_name - 10),
+                        (x + text_width_name + 10, y),
+                        color_background, -1)
+                    cv2.putText(image, person_name, (x + 5, y - 5), font, font_scale, color_text, thickness)
+                    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2) # Verde
 
+                # Bounding boxes para os outros rostos em azul
+                else:
+                    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2) # Azul
+    
+            self.get_logger().info('Logs desenhados.')
             return image
-        except Exception as e:
-            self.get_logger().error(f'Erro ao desenhar keypoints: {e}')
-            return image
+        # except Exception as e:
+        #     self.get_logger().error(f'Erro ao desenhar logs: {e}')
+        #     return image
 
 
 def main():
