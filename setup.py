@@ -23,7 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'inference = face_recognition.teste_final:main'
+            'inference = face_recognition.run_task:main'
         ],
     },
 )
