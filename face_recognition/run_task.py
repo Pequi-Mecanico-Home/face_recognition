@@ -12,6 +12,8 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from std_srvs.srv import Empty
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from threading import Thread
 
 class FaceRecognitionService(Node):
 
@@ -42,21 +44,24 @@ class FaceRecognitionService(Node):
         # TTS
         self._pub_tts = self.create_publisher(String, '/text_to_speech', 10)
         # Navegação
-        self._pub_nav = self.create_publisher(String, '/girar', 10)
+        self._pub_nav = self.create_publisher(String, '/person_recognition_status', 10)
         # ASR
-        self.callback_group_sub = ReentrantCallbackGroup()
+        self.callback_group_sub_1 = MutuallyExclusiveCallbackGroup()
+        self.callback_group_sub_2 = None
+        
         self._sub_asr = self.create_subscription(String,
                                                      'asr_output',
                                                      self.asr_cb,
                                                      10,
-                                                     callback_group=self.callback_group_sub
+                                                     callback_group=self.callback_group_sub_1
                                                      )
         # Publisher e Subscriber para a imagem
         self._pub_image = self.create_publisher(Image, "face_detection", 10)
         self._sub_image = self.create_subscription(
-                                             Image, "/camera/camera/color/image_raw",
+                                             Image, "/camera/color/image_raw",
                                              self.image_cb,
-                                             10
+                                             10,
+                                             callback_group=self.callback_group_sub_2
                                              )
         self.get_logger().info('Inicialização ok')
 
@@ -68,6 +73,8 @@ class FaceRecognitionService(Node):
 
 
     def image_cb(self, msg: Image):
+
+        temp3 = time.time()
 
         self.get_logger().info('Imagem recebida.')
 
@@ -83,34 +90,29 @@ class FaceRecognitionService(Node):
         # Se não conter rostos na imagem, dá erro e é passado uma lista vazia
         # A lista vazia não gera erro na função draw_logs caso não tenha rostos para gerar as bounding boxes
         try:
+            temp1 = time.time()
             embedding_objs = DeepFace.represent(img_path=image, detector_backend=self.backend)
+            temp2 = time.time()
             self.get_logger().info('Embeddings gerados para a imagem.')
+            self.get_logger().info(f'Tempo de inferência: {temp2 - temp1}')
         except Exception as e:
             self.get_logger().error(f'Erro ao gerar embeddings: {e}')
             embedding_objs = []
 
         # Salva os embeddings do rosto alvo caso tenha 1 rosto na imagem
         if self.mode == 'generate':
-            if len(embedding_objs) == 1:
-                if self.embedding_alvo != None:
-                    self.embedding_alvo = np.array(embedding_objs[0]['embedding'])
-                    self.get_logger().info('Embeddings salvos com sucesso.')
-                else:
+            try:
+                if len(embedding_objs) == 1:
+                    self.get_logger().info(f'{self.embedding_alvo}')
                     # TTS
                     publishing_tts = String()
                     publishing_tts.data = "Hi, What's your name?"
                     self.get_logger().info("Hi, What's your name?")
                     self._pub_tts.publish(publishing_tts)
-                    # Espera 5 segundos para falar o TTS
-                    inicio = time.time()
-                    while (time.time() - inicio) < 5:
-                        pass
-                    
+
                     # ASR
                     self.use_asr = True
-                    inicio = time.time()
-                    while (time.time() - inicio) < 10:
-                        pass
+                    time.sleep(5)
                     self.use_asr = False
                     self.get_logger().info("\n")
                     self.get_logger().info(f"{str(self.words)}")
@@ -118,6 +120,7 @@ class FaceRecognitionService(Node):
 
                     # Atribui o nome a pessoa e muda o modo
                     if len(self.words) > 0:
+                        self.embedding_alvo = np.array(embedding_objs[0]['embedding'])
                         for name in self.names_list:
                             if name in self.words:
                                 self.name_alvo = name
@@ -125,51 +128,78 @@ class FaceRecognitionService(Node):
                                 self.get_logger().info(f"Nome: {name}")
                                 self.get_logger().info("")
                                 self.mode = 'compare'
+
+                                #tts
+                                publishing_tts = String()
+                                publishing_tts.data = f"Hi, {self.name_alvo}, now, I can recognize you."
+                                self.get_logger().info(f"Hi, {self.name_alvo}, now, I can recognize you.")
+                                self._pub_tts.publish(publishing_tts)
+                                # Espera x segundos para falar o TTS e girar o robô
+                                inicio1 = time.time()
+                                while (time.time() - inicio1) < 5:
+                                    pass
+
+                                # Publica no tópico para girar o robô
+                                publishing_nav = String()
+                                publishing_nav.data = 'navigation'
+                                self._pub_nav.publish(publishing_nav)
+                                self.get_logger().info('navigation')
+
                                 break
-     
-            else:
-                self.get_logger().error(f'Erro, foram detectados {len(embedding_objs)} rostos na imagem.')
+        
+                else:
+                    self.get_logger().error(f'Erro, foram detectados {len(embedding_objs)} rostos na imagem.')
+            except Exception as e:
+                self.get_logger().error(f'Erro ao gerar embeddings 2: {e}')
             # Desenha logs
             image = self.draw_logs(image, embedding_objs=embedding_objs, mode=self.mode)
         
         # Compara os embeddings do rosto alvo com a multidão
         elif self.mode == 'compare':
-            #tts
-            publishing_tts = String()
-            publishing_tts.data = f"Hi, {self.name}, now, I can recognize you."
-            self.get_logger().info("tts")
-            self._pub_tts.publish(publishing_tts)
-            # Espera 5 segundos para falar o TTS
-            inicio = time.time()
-            while (time.time() - inicio) < 5:
-                pass
-
-            # Espera 1 minuto para girar depois girar o robô
-            while (time.time() - inicio) < 70:
-                pass
-
-            # Publica no tópico para girar o robô
-            publishing_nav = String()
-            publishing_nav.data = 'girar robô 180 graus.'
-            self._pub_nav.publish(publishing_nav)
-
             # Compara os rostos
             self.get_logger().info('Iniciando comparacao.')
             embedding_obj_alvo = self.embedding_alvo
-            if embedding_obj_alvo is None: # INTERAÇÃO: avise que o rosto alvo não foi identificado antes de trocar o modo de execução
+            if embedding_obj_alvo is None:
                 self.get_logger().error('Não foram gerados embeddings para o rosto alvo.')
             # Desenha logs
             image = self.draw_logs(image, embedding_objs=embedding_objs, embedding_obj_alvo=embedding_obj_alvo, mode=self.mode)
 
-
             # Apontar para o alvo
+            publishing_nav = String()
+            publishing_nav.data = 'manipulation'
+            self._pub_nav.publish(publishing_nav)
+            self.get_logger().info('manipulation')
+
+            # self.get_logger().info(f'\nx: {image.shape[1]}\n')
+
+            if self.x_center_alvo > -1:
+                # self.get_logger().info(f'\nx_center_alvo: {self.x_center_alvo}\n')
+                mapped_angle = int(-45 + (self.x_center_alvo / image.shape[1]) * (45 - (-45)))
+                self.get_logger().info(f'\nangulo: {mapped_angle}\n')
+
+                time.sleep(3)
+
+                # Finalizar
+                publishing_nav = String()
+                publishing_nav.data = 'finish'
+                self._pub_nav.publish(publishing_nav)
+                self.get_logger().info('finish')
+
+                # TTS
+                publishing_tts = String()
+                publishing_tts.data = "Te achei, safado, HAHAHA."
+                self.get_logger().info("Te achei, safado, HAHAHA.")
+                self._pub_tts.publish(publishing_tts)
 
 
         # Publica a imagem com os logs
-        self._pub.publish(self.cv_bridge.cv2_to_imgmsg(image, encoding=msg.encoding))
+        self._pub_image.publish(self.cv_bridge.cv2_to_imgmsg(image, encoding=msg.encoding))
         cv2.imwrite('imagem_saida.jpg', image)
         del image
         self.get_logger().info('Imagem com logs publicada.')
+
+        temp4 = time.time()
+        self.get_logger().info(f'Tempo image callback: {temp4 - temp3}')
 
 
     # Função para desenhar logs nas imagens
@@ -256,8 +286,12 @@ class FaceRecognitionService(Node):
 
 def main():
     rclpy.init()
+
     node = FaceRecognitionService()
-    rclpy.spin(node)
+
+    executor = rclpy.executors.MultiThreadedExecutor()
+    executor.add_node(node)
+    executor.spin()
     node.destroy_node()
     rclpy.shutdown()
 
