@@ -10,6 +10,7 @@ from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
+from std_msgs.msg import Float32
 from std_srvs.srv import Empty
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -45,6 +46,8 @@ class FaceRecognitionService(Node):
         self._pub_tts = self.create_publisher(String, '/text_to_speech', 10)
         # Navegação
         self._pub_nav = self.create_publisher(String, '/person_recognition_status', 10)
+        # Angulo
+        self._pub_angle = self.create_publisher(Float32, '/person_angle', 10)
         # ASR
         self.callback_group_sub_1 = MutuallyExclusiveCallbackGroup()
         self.callback_group_sub_2 = None
@@ -141,9 +144,9 @@ class FaceRecognitionService(Node):
 
                                 # Publica no tópico para girar o robô
                                 publishing_nav = String()
-                                publishing_nav.data = 'navigation'
+                                publishing_nav.data = 'rotate_base'
                                 self._pub_nav.publish(publishing_nav)
-                                self.get_logger().info('navigation')
+                                self.get_logger().info('rotate_base')
 
                                 break
         
@@ -166,9 +169,9 @@ class FaceRecognitionService(Node):
 
             # Apontar para o alvo
             publishing_nav = String()
-            publishing_nav.data = 'manipulation'
+            publishing_nav.data = 'point_arm'
             self._pub_nav.publish(publishing_nav)
-            self.get_logger().info('manipulation')
+            self.get_logger().info('point_arm')
 
             # self.get_logger().info(f'\nx: {image.shape[1]}\n')
 
@@ -184,6 +187,11 @@ class FaceRecognitionService(Node):
                 publishing_nav.data = 'finish'
                 self._pub_nav.publish(publishing_nav)
                 self.get_logger().info('finish')
+
+                publishing_angle = Float32()
+                publishing_angle.data = float(mapped_angle)
+                self._pub_angle.publish(publishing_angle)
+                self.get_logger().info('angulo publicado')
 
                 # TTS
                 publishing_tts = String()
