@@ -15,7 +15,21 @@ class FaceRecognitionService(Node):
     def __init__(self) -> None:
         super().__init__("face_recognition_service")
         self.cv_bridge = CvBridge()
-        self.backend = 'retinaface'
+
+        """
+        opencv -> acuracia ruim, tempo bom;
+        ssd -> acuracia ruim, tempo bom;
+        dlib -> acuracia ruim, tempo bom;
+        mtcnn -> acuracia médio, tempo bom;
+        fastmtcnn -> acuracia ruim, tempo bom;
+        retinaface -> acuracia boa, tempo ruim;
+        mediapipe -> acuracia ruim, tempo bom;
+        yolov8 -> acuracia boa, tempo bom;
+        yunet -> acuracia boa, tempo bom;
+        centerface -> acuracia media, tempo bom.
+        """
+
+        self.backend = 'yunet'
 
         self.get_logger().info('Começou')
         
@@ -25,16 +39,20 @@ class FaceRecognitionService(Node):
 
         # Serviço para alternar o modo entre "generate" e "compare"
         self.srv = self.create_service(Empty, 'toggle_mode', self.toggle_mode_callback)
+
+        self.get_logger().info('a')
         
         # Publisher e Subscriber para a imagem
         self._pub = self.create_publisher(Image, "face_detection", 10)
         self._sub = self.create_subscription(
-            Image, "/camera/color/image_raw", self.image_cb,
+            Image, "/misskal/d455/color/image_raw", self.image_cb,
             qos_profile_sensor_data
         )
 
+        self.get_logger().info('b')
+
         # Contagem de frames para pular
-        self.frame_skip = 10
+        self.frame_skip = 1
         self.frame_count = 0
 
 
@@ -60,7 +78,8 @@ class FaceRecognitionService(Node):
         # Converte imagem para OpenCV
         try:
             image = self.cv_bridge.imgmsg_to_cv2(msg)
-            self.get_logger().info('Imagem convertida para OpenCV.')
+            # altura, largura, canais = image.shape
+            self.get_logger().info(f'Imagem convertida para OpenCV: {image.shape}')
         except Exception as e:
             self.get_logger().error(f'Erro na conversão da imagem: {e}')
             return
@@ -69,7 +88,11 @@ class FaceRecognitionService(Node):
         # Se não conter rostos na imagem, dá erro e é passado uma lista vazia
         # A lista vazia não gera erro na função draw_logs caso não tenha rostos para gerar as bounding boxes
         try:
-            embedding_objs = DeepFace.represent(img_path=image, detector_backend=self.backend)
+            self.get_logger().info('Gerando inferencia.')
+            embedding_objs = DeepFace.represent(img_path=image, 
+                                                detector_backend=self.backend, 
+                                                # threshold=0.1,
+                                                )
             self.get_logger().info('Embeddings gerados para a imagem.')
         except Exception as e:
             self.get_logger().error(f'Erro ao gerar embeddings: {e}')
@@ -145,13 +168,13 @@ class FaceRecognitionService(Node):
 
             # Configurações de logs
             font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 1
+            font_scale = 0.7
             thickness = 2
             color_text = (255, 255, 255)  # Cor do texto (branco)
             color_background = (0, 0, 0)  # Cor do fundo (preto)
 
             # Log do modo de execução
-            position1 = (50, 50)
+            position1 = (50, 25)
             (text_width1, text_height1), _ = cv2.getTextSize(text_log, font, font_scale, thickness)
             cv2.rectangle(image, 
               (position1[0] - 10, position1[1] - text_height1 - 10), 
@@ -160,7 +183,7 @@ class FaceRecognitionService(Node):
             cv2.putText(image, text_log, position1, font, font_scale, color_text, thickness)
 
             # Log para a quantidade de pessoas
-            position2 = (50, 120)
+            position2 = (50, 60)
             count_ids = len(embedding_objs)
             text2 = f'Quantidade de pessoas detectadas: {count_ids}.'
             (text_width2, text_height2), _ = cv2.getTextSize(text2, font, font_scale, thickness)

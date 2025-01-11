@@ -23,7 +23,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'inference = face_recognition.yolo_inference:main'
+            'inference = face_recognition.fr_inference:main',
+            'node = face_recognition.fr_node:main',
+            'run_task = face_recognition.fr_run_task:main',
         ],
     },
 )
