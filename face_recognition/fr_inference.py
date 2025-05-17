@@ -29,7 +29,7 @@ class FaceRecognitionService(Node):
         centerface -> acuracia media, tempo bom.
         """
 
-        self.backend = 'yunet'
+        self.backend = 'yolov8'
 
         self.get_logger().info('Começou')
         
