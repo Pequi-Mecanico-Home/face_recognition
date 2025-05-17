@@ -5,7 +5,7 @@
 ## Utilizando a imagem image_fr:v8
 --------------------------------------------------------------------------------------------
 
-Abra o container dentro de percepcao usando:
+Abra o container usando:
 
 ```
 docker run  -it  --rm  --name face_recognition --privileged --net=host  --env 'DISPLAY' --env="QT_X11_NO_MITSHM=1" --volume "/tmp/.X11-unix:/tmp/.X11-unix:rw" --volume "/dev:/dev" --volume ./face_recognition:/dev_ws/src/face_recognition --runtime nvidia  --ulimit memlock=-1  --ulimit stack=67108864  image_fr:v8
@@ -25,9 +25,17 @@ source install/setup.bash
 
 --------------------------------------------------------------------------------------------
 
-Abra o script de inferência:
+Executa algum script de inferência (fr_inference, fr_node ou fr_run_task):
 ```
 ros2 run face_recognition inference
+```
+ou
+```
+ros2 run face_recognition node
+```
+ou
+```
+ros2 run face_recognition run_task
 ```
 
 --------------------------------------------------------------------------------------------
@@ -52,7 +60,7 @@ rviz2
 
 --------------------------------------------------------------------------------------------
 
-Para alterar o modo de execução do service:
+Para alterar o modo de execução do service (caso esteja usando fr_inference):
 
 ```
 ros2 service call /toggle_mode std_srvs/srv/Empty
@@ -95,6 +103,8 @@ pip install -i http://jetson.webredirect.org/root/pypi deepface==0.0.91 --truste
 export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
 ```
 
+Pacote:
+
 ```
 colcon build --symlink-install
 ```
@@ -105,9 +115,17 @@ source install/setup.bash
 
 --------------------------------------------------------------------------------------------
 
-Abra o script de inferência:
+Executa algum script de inferência (fr_inference, fr_node ou fr_run_task):
 ```
 ros2 run face_recognition inference
+```
+ou
+```
+ros2 run face_recognition node
+```
+ou
+```
+ros2 run face_recognition run_task
 ```
 
 --------------------------------------------------------------------------------------------
@@ -115,7 +133,7 @@ ros2 run face_recognition inference
 Abra o container em outro terminal e abra a camera realsense2:
 
 ```
-docker exec -it <nome_container> bash
+docker exec -it face_recognition bash
 ```
 
 ```
@@ -128,4 +146,12 @@ Abra o Rviz em outro terminal para observar as detecções dentro container em o
 
 ```
 rviz2
+```
+
+--------------------------------------------------------------------------------------------
+
+Para alterar o modo de execução do service (caso esteja usando fr_inference):
+
+```
+ros2 service call /toggle_mode std_srvs/srv/Empty
 ```
