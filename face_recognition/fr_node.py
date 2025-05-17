@@ -18,7 +18,8 @@ class FaceRecognitionNode(Node):
     def __init__(self):
         super().__init__("face_recognition_node")
         self.cv_bridge = CvBridge()
-        self.backend = 'mtcnn'
+        self.backend = 'yolov8'
+        
         """
         opencv -> acuracia ruim, tempo bom;
         ssd -> acuracia ruim, tempo bom;
