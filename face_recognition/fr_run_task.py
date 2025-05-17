@@ -30,7 +30,8 @@ class FaceRecognitionService(Node):
     def __init__(self):
         super().__init__("face_recognition_service")
         self.cv_bridge = CvBridge()
-        self.backend = 'mtcnn'
+        self.backend = 'yolov8'
+        
         """
         opencv -> acuracia ruim, tempo bom;
         ssd -> acuracia ruim, tempo bom;
@@ -43,6 +44,7 @@ class FaceRecognitionService(Node):
         yunet -> acuracia boa, tempo bom;
         centerface -> acuracia media, tempo bom.
         """
+        
         self.names_list = ['James', 'Michael', 'Robert', 'John', 'David', 'William', 'Richard', 'Joseph', 'Thomas', 'Christopher', 'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth', 'Barbara', 'Susan', 'Jessica', 'Karen', 'Sarah', 'Sara']
         self.mode = 'generate'
         self.embedding_alvo = None
