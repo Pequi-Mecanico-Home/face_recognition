@@ -25,7 +25,7 @@ setup(
         'console_scripts': [
             'inference = face_recognition.fr_inference:main',
             'node = face_recognition.fr_node:main',
-            'run_task = face_recognition.fr_run_task:main',
+            'run_task_old = face_recognition.fr_run_task_old:main',
         ],
     },
 )
