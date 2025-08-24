@@ -1,13 +1,10 @@
 from deepface import DeepFace
-import cv2
-import numpy as np
 import time
 
 import rclpy
 from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
-from threading import Thread
 
 from perception_interfaces.msg import FaceDetectionBoxes
 from perception_interfaces.msg import FaceDetectionBox
@@ -47,7 +44,7 @@ class FaceRecognitionNode(Node):
 
     def face_detection_msg(self, embedding_objs, img_header: Header) -> FaceDetectionBoxes:
         embeddings_msg = FaceDetectionBoxes()
-        embeddings_msg.image_header = img_header
+        embeddings_msg.header = img_header
 
         for i in range(len(embedding_objs)):
 
@@ -76,29 +73,34 @@ class FaceRecognitionNode(Node):
 
     def image_cb(self, msg: Image) -> None:
 
-        self.get_logger().info('Imagem recebida.')
+        num_subs = self._pub_detections.get_subscription_count()
+        self.get_logger().info(f'Número de subscribers: {num_subs}')
 
-        # Converte imagem para OpenCV
-        try:
-            image = self.cv_bridge.imgmsg_to_cv2(msg)
-            self.get_logger().info('Imagem convertida para OpenCV.')
-        except Exception as e:
-            self.get_logger().error(f'Erro na conversão da imagem: {e}')
-            return
-        
-        try:
-            temp1 = time.time()
-            embedding_objs = DeepFace.represent(img_path=image, detector_backend=self.backend)
-            temp2 = time.time()
-            self.get_logger().info('Embeddings gerados para a imagem.')
-            self.get_logger().info(f'Tempo de inferência: {temp2 - temp1}')
-        except Exception as e:
-            self.get_logger().error(f'Erro ao gerar embeddings: {e}')
-            embedding_objs = []
+        if num_subs > 0:
 
-        if len(embedding_objs) > 0:
-            detections_msg = self.face_detection_msg(embedding_objs, msg.header)
-            self._pub_detections.publish(detections_msg)
+            self.get_logger().info('Imagem recebida.')
+
+            # Converte imagem para OpenCV
+            try:
+                image = self.cv_bridge.imgmsg_to_cv2(msg)
+                self.get_logger().info('Imagem convertida para OpenCV.')
+            except Exception as e:
+                self.get_logger().error(f'Erro na conversão da imagem: {e}')
+                return
+            
+            try:
+                temp1 = time.time()
+                embedding_objs = DeepFace.represent(img_path=image, detector_backend=self.backend)
+                temp2 = time.time()
+                self.get_logger().info('Embeddings gerados para a imagem.')
+                self.get_logger().info(f'Tempo de inferência: {temp2 - temp1}')
+            except Exception as e:
+                self.get_logger().error(f'Erro ao gerar embeddings: {e}')
+                embedding_objs = []
+
+            if len(embedding_objs) > 0:
+                detections_msg = self.face_detection_msg(embedding_objs, msg.header)
+                self._pub_detections.publish(detections_msg)
 
 
 def main():
@@ -107,3 +109,4 @@ def main():
     rclpy.spin(face_detection_node)
     face_detection_node.destroy_node()
     rclpy.shutdown()
+
