@@ -18,17 +18,16 @@ def change_face_display(face):
     }
     requests.post('http://192.168.131.254:8080/post_trigger_html_change', data=data)
 
-def publish_tts_message(publisher, msg_data):
-    publishing_tts = String(data=msg_data)
-    publisher.publish(publishing_tts)
 
-def publish_angle_message(publisher, msg_data):
-    publishing_angle = Float32(data=float(msg_data))
-    publisher.publish(publishing_angle)
-
-def publish_status_message(publisher, msg_data):
-    publishing_status = String(data=msg_data)
-    publisher.publish(publishing_status)
+def publish_message(publisher, msg_data, msg_type):
+    if msg_type == "string":
+        msg = String(data=str(msg_data))
+    elif msg_type == "float":
+        msg = Float32(data=float(msg_data))
+    else:
+        raise ValueError(f"Tipo de mensagem inválido: {msg_type}")
+    
+    publisher.publish(msg)
 
 
 def draw_logs(node, image, embedding_objs, mode, alvo=-1, name=''):
@@ -119,6 +118,16 @@ def main(args=None):
     # Variáveis
     names_list = ['James', 'Michael', 'Robert', 'John', 'David', 'William', 'Richard', 'Joseph', 'Thomas', 'Christopher', 'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth', 'Barbara', 'Susan', 'Jessica', 'Karen', 'Sarah', 'Sara']
 
+    # Espera uma pessoa aparecer diante da câmera
+    msg_ok = False
+    msg_embs = False
+    while not (msg_ok and msg_embs):
+        msg_ok, msg = wait_for_message(FaceDetectionBoxes, node, '/face_detection_embeddings', )
+        msg_embs = True if len(msg.embeddings) == 1  else False
+    node.get_logger().info("Pessoa detectada, esperando 2 segundos...")
+
+    time.sleep(2)
+
     # Person Recognition
     # Pega o embedding se tiver uma pessoa na imagem
     node.get_logger().info("Pegando o embedding da pessoa alvo")
@@ -134,7 +143,7 @@ def main(args=None):
     # TTS: Pergunta o nome
     node.get_logger().info("TTS: Hi, What's your name?")
     msg_data = "Hi, What's your name?"
-    publish_tts_message(tts_publisher, msg_data)
+    publish_message(tts_publisher, msg_data, 'string')
     
     # ASR: Pega o nome
     node.get_logger().info("ASR: Esperando o nome")
@@ -152,7 +161,7 @@ def main(args=None):
     # TTS: Agora posso reconhecê-lo
     node.get_logger().info("TTS: Now, I can recognize you")
     msg_data = f"Hi, {found_name}, now, I can recognize you"
-    publish_tts_message(tts_publisher, msg_data)
+    publish_message(tts_publisher, msg_data, 'string')
 
     time.sleep(10)
 
@@ -166,7 +175,12 @@ def main(args=None):
     # Publica no tópico para girar o robô
     node.get_logger().info("Movendo o robô para encontrar a pessoa alvo")
     nav_status = "rotate_base"
-    publish_status_message(status_publisher, nav_status)
+    publish_message(status_publisher, nav_status, 'string')
+
+    '''
+    Aqui deve entrar a parte que espera uma mensagem no tópico /person_recognition_status
+    quando o robô terminar de girar 180 graus.
+    '''
 
     time.sleep(20)
 
@@ -216,25 +230,25 @@ def main(args=None):
     # Apontar para o alvo
     node.get_logger().info("Apontando para o alvo")
     arm_status = "point_arm"
-    publish_status_message(status_publisher, arm_status)
+    publish_message(status_publisher, arm_status, 'string')
 
     time.sleep(5)
 
     mapped_angle = int(-60 + (x_center_alvo / 1280) * (60 - (-60))) * -1
     node.get_logger().info(f"mapped_angle: {mapped_angle}")
-    publish_angle_message(direction_publisher, mapped_angle)
+    publish_message(direction_publisher, mapped_angle, 'float')
 
     time.sleep(5)
 
     # TTS: I found you, HAHAHA
     node.get_logger().info("TTS: I found you, HAHAHA")
     msg_data = f"I found you, {found_name}, HAHAHA."
-    publish_tts_message(tts_publisher, msg_data)
+    publish_message(tts_publisher, msg_data, 'string')
 
     # TTS: TTS: There are {count_ids} people, including you {found_name}.
     node.get_logger().info(f"TTS: There are {count_ids} people, including you")
     msg_data = f"There are {count_ids} people, including you {found_name}"
-    publish_tts_message(tts_publisher, msg_data)
+    publish_message(tts_publisher, msg_data, 'string')
 
     time.sleep(10)
 
@@ -243,14 +257,14 @@ def main(args=None):
     # Recolhe o braço
     node.get_logger().info("Recolhendo o braço")
     arm_status = "sleepy"
-    publish_status_message(status_publisher, arm_status)
+    publish_message(status_publisher, arm_status, 'string')
 
     time.sleep(3)
 
     # Finaliza
     node.get_logger().info("Finalizando...")
     arm_status = "finish"
-    publish_status_message(status_publisher, arm_status)
+    publish_message(status_publisher, arm_status, 'string')
 
     node.get_logger().info("Finished Person Recognition Task")
 

@@ -1,5 +1,6 @@
 from deepface import DeepFace
 import time
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -29,6 +30,15 @@ class FaceRecognitionNode(Node):
         yunet -> acuracia boa, tempo bom;
         centerface -> acuracia media, tempo bom.
         """
+
+        # Inferência inicial com tensor vazio (imagem preta)
+        try:
+            dummy_image = np.zeros((224, 224, 3), dtype=np.uint8)  # imagem preta 224x224
+            self.get_logger().info("Rodando inferência inicial (warmup)...")
+            _ = DeepFace.represent(img_path=dummy_image, detector_backend=self.backend, enforce_detection=False)
+            self.get_logger().info("Inferência inicial concluída com sucesso.")
+        except Exception as e:
+            self.get_logger().error(f"Erro na inferência inicial: {e}")
 
         self._sub_image = self.create_subscription(
                                             #  Image, "/camera/color/image_raw",
