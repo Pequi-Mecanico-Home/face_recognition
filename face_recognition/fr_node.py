@@ -34,11 +34,12 @@ class FaceRecognitionNode(Node):
         # Inferência inicial com tensor vazio (imagem preta)
         try:
             dummy_image = np.zeros((224, 224, 3), dtype=np.uint8)  # imagem preta 224x224
-            self.get_logger().info("Rodando inferência inicial (warmup)...")
+            self.get_logger().info('[WARMUP] [FACE] Iniciando...')
+            t = time.time()
             _ = DeepFace.represent(img_path=dummy_image, detector_backend=self.backend, enforce_detection=False)
-            self.get_logger().info("Inferência inicial concluída com sucesso.")
+            self.get_logger().info(f'[WARMUP] [FACE] Concluído em {(time.time() - t) * 1000:.1f}ms')
         except Exception as e:
-            self.get_logger().error(f"Erro na inferência inicial: {e}")
+            self.get_logger().error(f"[WARMUP] [FACE] Erro: {e}")
 
         self._sub_image = self.create_subscription(
                                             #  Image, "/camera/color/image_raw",
@@ -48,7 +49,7 @@ class FaceRecognitionNode(Node):
                                              )
 
         self._pub_detections = self.create_publisher(FaceDetectionBoxes, 
-                                                     '/face_detection_embeddings', 
+                                                     'face_recognition/yolov8/detections', 
                                                      10)
         
 
@@ -84,33 +85,39 @@ class FaceRecognitionNode(Node):
     def image_cb(self, msg: Image) -> None:
 
         num_subs = self._pub_detections.get_subscription_count()
-        self.get_logger().info(f'Número de subscribers: {num_subs}')
-
+       
         if num_subs > 0:
 
-            self.get_logger().info('Imagem recebida.')
+            # self.get_logger().info(f'Número de subscribers: {num_subs}')
+            # self.get_logger().info('Imagem recebida.')
 
             # Converte imagem para OpenCV
             try:
                 image = self.cv_bridge.imgmsg_to_cv2(msg)
-                self.get_logger().info('Imagem convertida para OpenCV.')
+                # self.get_logger().info('Imagem convertida para OpenCV.')
             except Exception as e:
-                self.get_logger().error(f'Erro na conversão da imagem: {e}')
+                # self.get_logger().error(f'Erro na conversão da imagem: {e}')
                 return
             
             try:
                 temp1 = time.time()
                 embedding_objs = DeepFace.represent(img_path=image, detector_backend=self.backend)
                 temp2 = time.time()
-                self.get_logger().info('Embeddings gerados para a imagem.')
-                self.get_logger().info(f'Tempo de inferência: {temp2 - temp1}')
+                # self.get_logger().info('Embeddings gerados para a imagem.')
+                # self.get_logger().info(f'Tempo de inferência: {temp2 - temp1}')
             except Exception as e:
-                self.get_logger().error(f'Erro ao gerar embeddings: {e}')
+                # self.get_logger().error(f'Erro ao gerar embeddings: {e}')
                 embedding_objs = []
 
             if len(embedding_objs) > 0:
                 detections_msg = self.face_detection_msg(embedding_objs, msg.header)
                 self._pub_detections.publish(detections_msg)
+
+            self.get_logger().info(
+                f'[FACE]'
+                f'{len(embedding_objs)} faces | '
+                f'{(time.time() - temp1) * 1000:.1f}ms'
+            )
 
 
 def main():
